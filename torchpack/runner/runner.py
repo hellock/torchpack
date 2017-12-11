@@ -4,6 +4,7 @@ import time
 from collections import defaultdict
 from enum import Enum
 
+import torch
 from torchpack.io import load_checkpoint, save_checkpoint
 from torchpack.runner.lr_updater import LrUpdater
 from torchpack.runner.meters import AverageMeter
@@ -30,12 +31,12 @@ class Runner(object):
 
     def __init__(self,
                  model,
-                 optimizer,
+                 optimizer_config,
                  batch_processor,
                  work_dir,
                  log_level=logging.INFO):
         self.model = model
-        self.optimizer = optimizer
+        self.optimizer = self.set_optimizer(optimizer_config)
         self.batch_processor = batch_processor
         self.work_dir = work_dir
         self.triggers = defaultdict(list)
@@ -45,6 +46,17 @@ class Runner(object):
         self.num_iters = 0
         self.num_epoch_iters = 0
         self.mode = None
+
+    def set_optimizer(self, config):
+        if isinstance(config['algorithm'], str):
+            optim_cls = getattr(torch.optim, config['algorithm'])
+        elif isinstance(config['algorithm'], torch.optim.Optimizer):
+            optim_cls = config['algorithm']
+        else:
+            raise ValueError('"{}" is not an implemented optimizer algorithm'.
+                             format(config['algorithm']))
+        optimizer = optim_cls(self.model.parameters(), **config['params'])
+        return optimizer
 
     def init_logger(self, log_dir=None, level=logging.INFO):
         logging.basicConfig(
@@ -128,6 +140,7 @@ class Runner(object):
             self.num_iters += 1
 
         self.trigger(Signal.POST_TRAIN_EPOCH)
+        self.epoch += 1
 
     def val(self, data_loader, **kwargs):
         self.model.eval()
@@ -151,12 +164,12 @@ class Runner(object):
             self.trigger(Signal.POST_VAL_ITER)
         self.trigger(Signal.POST_VAL_EPOCH)
 
-    def resume(self, checkpoint_file):
-        checkpoint = load_checkpoint(self.model, checkpoint_file)
+    def resume(self, checkpoint):
+        checkpoint = self.load_checkpoint(checkpoint)
         self.epoch = checkpoint['epoch'] + 1
         self.num_iters = checkpoint['num_iters']
         self.logger.info('resume from checkpoint %s, epoch %d, iter %d',
-                         checkpoint_file, self.epoch, self.num_iters)
+                         checkpoint, self.epoch, self.num_iters)
 
     def run(self, data_loaders, workflow, max_epoch, **kwargs):
         assert isinstance(data_loaders, list)
@@ -179,7 +192,7 @@ class Runner(object):
             runner.lr = LrUpdater.update(runner.optimizer, runner.epoch,
                                          **kwargs)
 
-        assert 'policy' in lr_config and 'base_lr' in lr_config
+        assert 'policy' in lr_config
         self.register_trigger(Signal.PRE_TRAIN_EPOCH, update_lr, **lr_config)
 
     def _register_checkpoint(self, checkpoint_config):

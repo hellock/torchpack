@@ -25,7 +25,8 @@ class LrUpdater(object):
             method = policy
         else:
             raise TypeError('"policy" must be a string or method')
-        lr = method(epoch, **kwargs)
+        base_lr = optimizer.defaults['lr']
+        lr = method(epoch, base_lr, **kwargs)
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
         return lr

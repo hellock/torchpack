@@ -76,5 +76,6 @@ def save_checkpoint(model,
     }, filename)
     latest_link = os.path.join(out_dir, 'latest.pth')
     make_link(filename, latest_link)
-    best_link = os.path.join(out_dir, 'best.pth')
-    make_link(filename, best_link)
+    if is_best:
+        best_link = os.path.join(out_dir, 'best.pth')
+        make_link(filename, best_link)
