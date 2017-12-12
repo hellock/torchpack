@@ -81,7 +81,7 @@ class Runner(object):
                 interval = trigger['interval']
                 if measure % interval == 0:
                     self.logger.debug(
-                        'iter %d, signal {}, trigger {}, args: {}',
+                        'iter %d, signal %s, trigger %s, args: %s',
                         self.num_epoch_iters, signal.name, func.__name__,
                         kwargs)
                     func(self, **kwargs)
