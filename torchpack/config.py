@@ -82,6 +82,12 @@ class Config(object):
     def __iter__(self):
         return self.keys()
 
+    def __contains__(self, key):
+        if key in self._config_dict or key in self._default_dict:
+            return True
+        else:
+            return False
+
     @property
     def text(self):
         return self._text

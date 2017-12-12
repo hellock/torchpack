@@ -80,6 +80,10 @@ class Runner(object):
                 kwargs = trigger['kwargs']
                 interval = trigger['interval']
                 if measure % interval == 0:
+                    self.logger.debug(
+                        'iter %d, signal {}, trigger {}, args: {}',
+                        self.num_epoch_iters, signal.name, func.__name__,
+                        kwargs)
                     func(self, **kwargs)
 
     def register_trigger(self, signal, trigger, interval=1, **kwargs):
@@ -222,7 +226,8 @@ class Runner(object):
                     runner.epoch + 1, runner.num_epoch_iters + 1,
                     len(runner.data_loader), runner.lr)
             elif runner.mode == 'val':
-                log_info = 'Epoch(val) [{}]\t'.format(runner.epoch + 1)
+                log_info = 'Epoch(val) [{}][{}]\t'.format(
+                    runner.epoch, runner.num_epoch_iters + 1)
 
             log_info += (
                 'Time {avg[batch_time]:.3f} (Data {avg[data_time]:.3f})\t'
@@ -232,9 +237,8 @@ class Runner(object):
                 for var in runner.outputs['log_vars']:
                     if var == 'loss':
                         continue
-                    else:
-                        loss_items.append(
-                            '{}: {:.4f}'.format(var, runner.meter.avg[var]))
+                    loss_items.append(
+                        '{}: {:.4f}'.format(var, runner.meter.avg[var]))
                 log_info += ' (' + ', '.join(loss_items) + ')'
             runner.logger.info(log_info)
 
