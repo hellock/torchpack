@@ -176,6 +176,8 @@ class Runner(object):
 
     def run(self, data_loaders, workflow, max_epoch, **kwargs):
         assert isinstance(data_loaders, list)
+        self.logger.info('Start running, workflow: %s, max: %d epochs',
+                         workflow, max_epoch)
         while self.epoch < max_epoch:
             for i, flow in enumerate(workflow):
                 mode, epochs = flow

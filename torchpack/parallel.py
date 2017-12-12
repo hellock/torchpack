@@ -1,6 +1,7 @@
 import multiprocessing
 
 import torch
+import cvbase as cvb
 
 from .io import load_checkpoint
 
@@ -45,8 +46,10 @@ def parallel_test(model_cls,
         idx_queue.put(i)
 
     results = [None for _ in range(len(dataset))]
+    prog_bar = cvb.ProgressBar(task_num=len(dataset))
     for _ in range(len(dataset)):
         idx, res = result_queue.get()
         results[idx] = res
+        prog_bar.update()
 
     return results

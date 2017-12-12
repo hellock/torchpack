@@ -1,8 +1,8 @@
+import os.path as osp
 import sys
 from argparse import ArgumentParser
 from collections import Iterable
 from importlib import import_module
-from os import path
 
 import cvbase as cvb
 
@@ -31,8 +31,8 @@ class Config(object):
     @staticmethod
     def from_file(filename):
         if filename.endswith('.py'):
-            sys.path.append(path.dirname(filename))
-            module_name = path.basename(filename).rstrip('.py')
+            sys.path.append(osp.dirname(filename))
+            module_name = osp.basename(filename).rstrip('.py')
             cfg = import_module(module_name)
             config_dict = {
                 name: value

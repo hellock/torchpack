@@ -18,6 +18,18 @@ class LrUpdater(object):
         return base_lr * 0.1**exp
 
     @staticmethod
+    def custom(epoch, base_lr, multipliers):
+        assert isinstance(multipliers, list)
+        for m in multipliers:
+            assert isinstance(m, tuple)
+        multiplier = 1
+        for step, m in multipliers:
+            if epoch < step:
+                break
+            multiplier = m
+        return base_lr * multiplier
+
+    @staticmethod
     def update(optimizer, epoch, policy, **kwargs):
         if isinstance(policy, str):
             method = getattr(LrUpdater, policy)

@@ -26,15 +26,17 @@ def load_state_dict(module, state_dict, strict=False):
                                    .format(name, own_state[name].size(),
                                            param.size()))
         elif strict:
-            raise KeyError('unexpected key "{}" in state_dict'.format(name))
+            raise KeyError(
+                'unexpected key "{}" in source state_dict'.format(name))
         else:
-            print('ignore key "{}" in state_dict'.format(name))
+            print('ignore key "{}" in source state_dict'.format(name))
     missing = set(own_state.keys()) - set(state_dict.keys())
     if len(missing) > 0:
         if strict:
-            raise KeyError('missing keys in state_dict: "{}"'.format(missing))
+            raise KeyError(
+                'missing keys in source state_dict: "{}"'.format(missing))
         else:
-            print('missing keys in state_dict: "{}"'.format(missing))
+            print('missing keys in source state_dict: "{}"'.format(missing))
 
 
 def load_checkpoint(model, filename, strict=False):
