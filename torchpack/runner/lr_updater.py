@@ -5,17 +5,22 @@ class LrUpdater(object):
         return base_lr
 
     @staticmethod
-    def step(epoch, base_lr, step):
-        return base_lr * (0.1**(epoch // step))
-
-    @staticmethod
-    def multistep(epoch, base_lr, steps):
-        exp = len(steps)
-        for i, step in enumerate(steps):
-            if epoch < step:
+    def step(epoch, base_lr, step, gamma=0.1):
+        if isinstance(step, int):
+            return base_lr * (gamma**(epoch // step))
+        assert isinstance(step, list)
+        for s in step:
+            assert isinstance(s, int)
+        exp = len(step)
+        for i, s in enumerate(step):
+            if epoch < s:
                 exp = i
                 break
-        return base_lr * 0.1**exp
+        return base_lr * gamma**exp
+
+    @staticmethod
+    def exp(epoch, base_lr, gamma):
+        return base_lr * gamma**epoch
 
     @staticmethod
     def custom(epoch, base_lr, multipliers):

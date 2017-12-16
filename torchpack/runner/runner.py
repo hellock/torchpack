@@ -168,11 +168,12 @@ class Runner(object):
         self.trigger(Signal.POST_VAL_EPOCH)
 
     def resume(self, checkpoint):
+        self.logger.info('resume from checkpoint %s', checkpoint)
         checkpoint = self.load_checkpoint(checkpoint)
         self.epoch = checkpoint['epoch'] + 1
         self.num_iters = checkpoint['num_iters']
-        self.logger.info('resume from checkpoint %s, epoch %d, iter %d',
-                         checkpoint, self.epoch, self.num_iters)
+        self.logger.info('resumed epoch %d, iter %d', self.epoch,
+                         self.num_iters)
 
     def run(self, data_loaders, workflow, max_epoch, **kwargs):
         assert isinstance(data_loaders, list)
