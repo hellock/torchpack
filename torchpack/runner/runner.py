@@ -31,12 +31,12 @@ class Runner(object):
 
     def __init__(self,
                  model,
-                 optimizer_config,
+                 optimizer,
                  batch_processor,
                  work_dir,
                  log_level=logging.INFO):
         self.model = model
-        self.optimizer = self.set_optimizer(optimizer_config)
+        self.optimizer = self.set_optimizer(optimizer)
         self.batch_processor = batch_processor
         self.work_dir = work_dir
         self.triggers = defaultdict(list)
@@ -47,15 +47,13 @@ class Runner(object):
         self.num_epoch_iters = 0
         self.mode = None
 
-    def set_optimizer(self, config):
-        if isinstance(config['algorithm'], str):
-            optim_cls = getattr(torch.optim, config['algorithm'])
-        elif isinstance(config['algorithm'], torch.optim.Optimizer):
-            optim_cls = config['algorithm']
-        else:
-            raise ValueError('"{}" is not an implemented optimizer algorithm'.
-                             format(config['algorithm']))
-        optimizer = optim_cls(self.model.parameters(), **config['params'])
+    def set_optimizer(self, optimizer):
+        if isinstance(optimizer, dict):
+            optim_cls = getattr(torch.optim, optimizer['algorithm'])
+            optimizer = optim_cls(self.model.parameters(), **optimizer['args'])
+        elif not isinstance(optimizer, torch.optim.Optimizer):
+            raise ValueError(
+                '"optimizer" must be either an Optimizer object or a dict')
         return optimizer
 
     def init_logger(self, log_dir=None, level=logging.INFO):
