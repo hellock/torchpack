@@ -1,9 +1,6 @@
-import sys
 from setuptools import find_packages, setup
 
-install_requires = ['cvbase']
-if sys.version_info < (3, 4):
-    install_requires.append('enum34')
+install_requires = ['cvbase', 'six']
 
 
 def readme():
@@ -15,7 +12,7 @@ def readme():
 def get_version():
     version_file = 'torchpack/version.py'
     with open(version_file, 'r') as f:
-        exec (compile(f.read(), version_file, 'exec'))
+        exec(compile(f.read(), version_file, 'exec'))
     return locals()['__version__']
 
 

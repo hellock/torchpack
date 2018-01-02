@@ -8,19 +8,20 @@ Documentation is ongoing.
 ## Example
 
 ```python
-import torch
-from torchpack import Runner
-from collections import OrderedDict
-
+######################## file1: config.py #######################
 work_dir = './demo'  # dir to save log file and checkpoints
 optimizer = dict(
-    algorithm='SGD', params=dict(lr=0.001, momentum=0.9, weight_decay=5e-4))
+    algorithm='SGD', args=dict(lr=0.001, momentum=0.9, weight_decay=5e-4))
 workflow = [('train', 2), ('val', 1)]  # train 2 epochs and then validate 1 epochs, iteratively
 max_epoch = 16
 lr_policy = dict(policy='step', step=12)  # decrese learning rate by 10 every 12 epochs
 checkpoint_cfg = dict(interval=1)  # save checkpoint at every epoch
 log_cfg = dict(interval=50)  # log at every 50 iterations
 
+######################### file2: main.py ########################
+import torch
+from torchpack import Config, Runner
+from collections import OrderedDict
 
 # define how to process a batch and return a dict
 def batch_processor(model, data, train_mode):
@@ -38,9 +39,10 @@ def batch_processor(model, data, train_mode):
         loss=loss, log_vars=log_vars, num_samples=img.size(0))
     return outputs
 
+cfg = Config.from_file('config.py')  # or config.yaml/config.json
+model = resnet18()
+runner = Runner(model, cfg.optimizer, batch_processor, cfg.work_dir)
+runner.register_default_hooks(cfg.lr_policy, cfg.checkpoint_cfg, cfg.log_cfg)
 
-runner = Runner(model, optimizer, batch_processor, work_dir)
-runner.default_triggers(lr_policy, checkpoint_cfg, log_cfg)
-
-runner.run([train_loader, val_loader], workflow, max_epoch)
+runner.run([train_loader, val_loader], cfg.workflow, cfg.max_epoch)
 ```

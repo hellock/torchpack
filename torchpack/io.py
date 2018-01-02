@@ -4,12 +4,6 @@ from collections import OrderedDict
 import torch
 
 
-def make_link(filename, link):
-    if os.path.islink(link):
-        os.remove(link)
-    os.symlink(filename, link)
-
-
 def load_state_dict(module, state_dict, strict=False):
     own_state = module.state_dict()
     for name, param in state_dict.items():
@@ -54,6 +48,12 @@ def load_checkpoint(model, filename, strict=False):
     else:
         load_state_dict(model, state_dict, strict)
     return checkpoint
+
+
+def make_link(filename, link):
+    if os.path.islink(link):
+        os.remove(link)
+    os.symlink(filename, link)
 
 
 def save_checkpoint(model,

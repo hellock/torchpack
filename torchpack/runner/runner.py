@@ -1,30 +1,12 @@
 import logging
 import os
 import time
-from collections import defaultdict
-from enum import Enum
 
 import torch
 from torchpack.io import load_checkpoint, save_checkpoint
-from torchpack.runner.lr_updater import LrUpdater
-from torchpack.runner.meters import AverageMeter
-
-
-class Signal(Enum):
-
-    PRE_TRAIN_EPOCH = ('epoch', 'pre_train_epoch')
-    PRE_VAL_EPOCH = ('epoch', 'pre_val_epoch')
-    POST_TRAIN_EPOCH = ('epoch', 'post_train_epoch')
-    POST_VAL_EPOCH = ('epoch', 'post_val_epoch')
-    PRE_TRAIN_ITER = ('iter', 'pre_train_iter')
-    PRE_VAL_ITER = ('iter', 'pre_val_iter')
-    POST_TRAIN_ITER = ('iter', 'post_train_iter')
-    POST_VAL_ITER = ('iter', 'post_val_iter')
-    # signal bundles
-    PRE_EPOCH = [('epoch', 'pre_train_epoch'), ('epoch', 'pre_val_epoch')]
-    POST_EPOCH = [('epoch', 'post_train_epoch'), ('epoch', 'post_val_epoch')]
-    PRE_ITER = [('iter', 'pre_train_iter'), ('iter', 'pre_val_iter')]
-    POST_ITER = [('iter', 'post_train_iter'), ('iter', 'post_val_iter')]
+from torchpack.runner.hooks import (Hook, LrUpdaterHook, CheckpointSaverHook,
+                                    BasicLoggerHook, MeterHook,
+                                    OptimizerStepperHook)
 
 
 class Runner(object):
@@ -39,7 +21,7 @@ class Runner(object):
         self.optimizer = self.set_optimizer(optimizer)
         self.batch_processor = batch_processor
         self.work_dir = work_dir
-        self.triggers = defaultdict(list)
+        self.hooks = []
         self.logger = self.init_logger(work_dir, log_level)
 
         self.epoch = 0
@@ -69,36 +51,13 @@ class Runner(object):
             logger.addHandler(logging.FileHandler(log_file, 'w'))
         return logger
 
-    def trigger(self, signal):
-        if signal in self.triggers:
-            measure = self.epoch + 1 if signal.value[
-                0] == 'epoch' else self.num_epoch_iters + 1
-            for trigger in self.triggers[signal]:
-                func = trigger['trigger']
-                kwargs = trigger['kwargs']
-                interval = trigger['interval']
-                if measure % interval == 0:
-                    self.logger.debug(
-                        'iter %d, signal %s, trigger %s, args: %s',
-                        self.num_epoch_iters, signal.name, func, kwargs)
-                    func(self, **kwargs)
+    def register_hook(self, hook):
+        assert isinstance(hook, Hook)
+        self.hooks.append(hook)
 
-    def register_trigger(self, signal, trigger, interval=1, **kwargs):
-        if not isinstance(signal, Signal):
-            raise TypeError(
-                '"signal" must be a Signal, not {} type'.format(type(signal)))
-        if isinstance(signal.value, list):
-            for s in signal.value:
-                self.register_trigger(self,
-                                      Signal(s), trigger, interval, **kwargs)
-        else:
-            assert callable(trigger)
-            assert isinstance(interval, int) and interval > 0
-            self.triggers[signal].append({
-                'trigger': trigger,
-                'kwargs': kwargs,
-                'interval': interval
-            })
+    def call_hook(self, fn_name):
+        for hook in self.hooks:
+            getattr(hook, fn_name)(self)
 
     def load_checkpoint(self, filename):
         self.logger.info('load checkpoint from %s', filename)
@@ -116,59 +75,33 @@ class Runner(object):
         self.model.train()
         self.mode = 'train'
         self.data_loader = data_loader
-        self.trigger(Signal.PRE_TRAIN_EPOCH)
-        self.meter = AverageMeter()
-        t = time.time()
+        self.call_hook('before_train_epoch')
         for i, data_batch in enumerate(data_loader):
-            # measure data loading time
-            self.meter.update({'data_time': time.time() - t})
-            # iter number in this epoch
             self.num_epoch_iters = i
-            # send a PRE_TRAIN_ITER signal
-            self.trigger(Signal.PRE_TRAIN_ITER)
-            # process a batch of data
+            self.call_hook('before_train_iter')
             self.outputs = self.batch_processor(
                 self.model, data_batch, train_mode=True, **kwargs)
-            # update meter
-            self.meter.update(self.outputs['log_vars'],
-                              self.outputs['num_samples'])
-            # measure batch iteration time
-            self.meter.update({'batch_time': time.time() - t})
-            t = time.time()
-            # send a POST_TRAIN_ITER signal
-            self.trigger(Signal.POST_TRAIN_ITER)
-
+            self.call_hook('after_train_iter')
             self.num_iters += 1
-
-        self.trigger(Signal.POST_TRAIN_EPOCH)
+        self.call_hook('after_train_epoch')
         self.epoch += 1
 
     def val(self, data_loader, **kwargs):
         self.model.eval()
         self.mode = 'val'
         self.data_loader = data_loader
-        self.trigger(Signal.PRE_VAL_EPOCH)
-        self.meter = AverageMeter()
-        t = time.time()
+        self.call_hook('before_val_epoch')
         for i, data_batch in enumerate(data_loader):
-            # measure data loading time
-            self.meter.update({'data_time': time.time() - t})
             self.num_epoch_iters = i
-            self.trigger(Signal.PRE_VAL_ITER)
+            self.call_hook('before_val_iter')
             self.outputs = self.batch_processor(
                 self.model, data_batch, train_mode=False, **kwargs)
-            self.meter.update(self.outputs['log_vars'],
-                              self.outputs['num_samples'])
-            # measure elapsed time
-            self.meter.update({'batch_time': time.time() - t})
-            t = time.time()
-            self.trigger(Signal.POST_VAL_ITER)
-        self.trigger(Signal.POST_VAL_EPOCH)
+            self.call_hook('after_val_iter')
+        self.call_hook('after_val_epoch')
 
     def resume(self, checkpoint):
-        self.logger.info('resume from checkpoint %s', checkpoint)
         checkpoint = self.load_checkpoint(checkpoint)
-        self.epoch = checkpoint['epoch'] + 1
+        self.epoch = checkpoint['epoch']
         self.num_iters = checkpoint['num_iters']
         self.logger.info('resumed epoch %d, iter %d', self.epoch,
                          self.num_iters)
@@ -177,6 +110,7 @@ class Runner(object):
         assert isinstance(data_loaders, list)
         self.logger.info('Start running, workflow: %s, max: %d epochs',
                          workflow, max_epoch)
+        self.call_hook('before_run')
         while self.epoch < max_epoch:
             for i, flow in enumerate(workflow):
                 mode, epochs = flow
@@ -189,78 +123,12 @@ class Runner(object):
                     if mode == 'train' and self.epoch >= max_epoch:
                         return
                     epoch_runner(data_loaders[i], **kwargs)
+        self.call_hook('after_run')
 
-    def _register_lr_updater(self, lr_config):
-
-        def update_lr(runner, **kwargs):
-            runner.lr = LrUpdater.update(runner.optimizer, runner.epoch,
-                                         **kwargs)
-
-        assert 'policy' in lr_config
-        self.register_trigger(Signal.PRE_TRAIN_EPOCH, update_lr, **lr_config)
-
-    def _register_checkpoint(self, checkpoint_config):
-
-        def checkpoint(runner, **kwargs):
-            save_checkpoint(runner.model, runner.epoch, runner.num_iters,
-                            **kwargs)
-
-        checkpoint_config['out_dir'] = self.work_dir
-        self.register_trigger(Signal.POST_TRAIN_EPOCH, checkpoint,
-                              **checkpoint_config)
-
-    def _register_bp(self):
-
-        def back_propagate(runner):
-            runner.optimizer.zero_grad()
-            runner.outputs['loss'].backward()
-            runner.optimizer.step()
-
-        self.register_trigger(Signal.POST_TRAIN_ITER, back_propagate)
-
-    def _register_loss_logger(self, log_config):
-
-        def log_loss(runner):
-            if runner.mode == 'train':
-                log_info = 'Epoch [{}][{}/{}]\tlr: {:.5f}\t'.format(
-                    runner.epoch + 1, runner.num_epoch_iters + 1,
-                    len(runner.data_loader), runner.lr)
-            elif runner.mode == 'val':
-                log_info = 'Epoch(val) [{}][{}]\t'.format(
-                    runner.epoch, runner.num_epoch_iters + 1)
-
-            log_info += (
-                'Time {avg[batch_time]:.3f} (Data {avg[data_time]:.3f})\t'
-                'Loss {avg[loss]:.4f}').format(avg=runner.meter.avg)
-            if len(runner.outputs['log_vars']) > 1:
-                loss_items = []
-                for var in runner.outputs['log_vars']:
-                    if var == 'loss':
-                        continue
-                    loss_items.append(
-                        '{}: {:.4f}'.format(var, runner.meter.avg[var]))
-                log_info += ' (' + ', '.join(loss_items) + ')'
-            runner.logger.info(log_info)
-
-        self.register_trigger(
-            Signal.POST_TRAIN_ITER, log_loss, interval=log_config['interval'])
-        self.register_trigger(Signal.POST_VAL_EPOCH, log_loss)
-
-    def _register_reset_meter(self, interval):
-        self.register_trigger(
-            Signal.POST_TRAIN_ITER,
-            lambda runner: runner.meter.reset(),
-            interval=interval)
-
-    def default_triggers(self,
-                         lr_config,
-                         checkpoint_config,
-                         log_config,
-                         reset_meter=True):
-        """Register several default triggers"""
-        self._register_lr_updater(lr_config)
-        self._register_checkpoint(checkpoint_config)
-        self._register_bp()
-        self._register_loss_logger(log_config)
-        if reset_meter:
-            self._register_reset_meter(log_config['interval'])
+    def register_default_hooks(self, lr_config, checkpoint_config, log_config):
+        """Register several default hooks"""
+        self.register_hook(LrUpdaterHook(**lr_config))
+        self.register_hook(CheckpointSaverHook(**checkpoint_config))
+        self.register_hook(OptimizerStepperHook())
+        self.register_hook(MeterHook())
+        self.register_hook(BasicLoggerHook(**log_config))

@@ -1,4 +1,7 @@
+import time
 from collections import defaultdict
+
+from torchpack.runner.hooks import Hook
 
 
 class AverageMeter(object):
@@ -28,3 +31,19 @@ class AverageMeter(object):
             self.sum[k] += v * n
             self.count[k] += n
             self.avg[k] = self.sum[k] / self.count[k]
+
+
+class MeterHook(Hook):
+
+    def before_epoch(self, runner):
+        runner.meter = AverageMeter()
+        self.t = time.time()
+
+    def before_iter(self, runner):
+        runner.meter.update({'data_time': time.time() - self.t})
+
+    def after_iter(self, runner):
+        runner.meter.update({'batch_time': time.time() - self.t})
+        self.t = time.time()
+        runner.meter.update(runner.outputs['log_vars'],
+                            runner.outputs['num_samples'])

@@ -8,29 +8,38 @@ from threading import Thread
 import requests
 from six.moves.queue import Empty, Queue
 
+from torchpack.runner.hooks import Hook
 
-class PaviLogger(object):
 
-    def __init__(self, url, username=None, password=None, instance_id=None):
+class PaviLoggerHook(Hook):
+
+    def __init__(self,
+                 interval,
+                 url,
+                 username=None,
+                 password=None,
+                 instance_id=None,
+                 reset_meter=True,
+                 ignore_last=True):
+        self.interval = interval
         self.url = url
+        self.username = self._get_env_var(username, 'PAVI_USERNAME')
+        self.password = self._get_env_var(password, 'PAVI_PASSWORD')
         self.instance_id = instance_id
+        self.reset_meter = reset_meter
+        self.ignore_last = ignore_last
         self.log_queue = None
-        if username is not None:
-            self.username = str(username)
-        else:
-            username = os.getenv('PAVI_USERNAME')
-            if username:
-                self.username = username
-            else:
-                raise ValueError('Pavi username is not specified')
-        if password is not None:
-            self.password = str(password)
-        else:
-            password = os.getenv('PAVI_PASSWORD')
-            if password:
-                self.password = password
-            else:
-                raise ValueError('Pavi password is not specified')
+
+    def _get_env_var(self, var, env_var):
+        if var is not None:
+            return str(var)
+
+        var = os.getenv(env_var)
+        if not var:
+            raise ValueError(
+                '"{}" is neither specified nor defined as env variables'.
+                format(env_var))
+        return var
 
     def connect(self, model_name, work_dir=None, info=dict(), timeout=5):
         print('connecting pavi service {}...'.format(self.url))
@@ -55,7 +64,7 @@ class PaviLogger(object):
                 print('pavi service connected, instance_id: {}'.format(
                     self.instance_id))
                 self.log_queue = Queue()
-                self.log_thread = Thread(target=self.post_log, args=(3, 3, 3))
+                self.log_thread = Thread(target=self.post_log)
                 self.log_thread.daemon = True
                 self.log_thread.start()
                 return True
@@ -65,23 +74,7 @@ class PaviLogger(object):
                                                    response.reason))
         return False
 
-    def __call__(self, runner):
-        if self.log_queue is not None:
-            log_outs = {
-                var: runner.meter.avg[var]
-                for var in runner.outputs['log_vars']
-            }
-            logs = {
-                'time': str(datetime.now()),
-                'instance_id': self.instance_id,
-                'flow_id': runner.mode,
-                'iter_num': runner.num_iters,
-                'outputs': log_outs,
-                'msg': ''
-            }
-            self.log_queue.put(logs)
-
-    def post_log(self, max_retry, queue_timeout, req_timeout):
+    def post_log(self, max_retry=3, queue_timeout=1, req_timeout=3):
         while True:
             try:
                 log = self.log_queue.get(timeout=queue_timeout)
@@ -108,3 +101,32 @@ class PaviLogger(object):
                             retry += 1
                 if retry == max_retry:
                     print('fail to send logs of iteration %d', log['iter_num'])
+
+    def _log(self, runner):
+        if self.log_queue is not None:
+            log_outs = {
+                var: runner.meter.avg[var]
+                for var in runner.outputs['log_vars']
+            }
+            logs = {
+                'time': str(datetime.now()),
+                'instance_id': self.instance_id,
+                'flow_id': runner.mode,
+                'iter_num': runner.num_iters,
+                'outputs': log_outs,
+                'msg': ''
+            }
+            self.log_queue.put(logs)
+            if self.reset_meter:
+                runner.meter.reset()
+
+    def after_train_iter(self, runner):
+        if not self.every_n_inner_iters(runner, self.interval):
+            if not self.end_of_epoch(runner):
+                return
+            elif self.ignore_last:
+                return
+        self._log(runner)
+
+    def after_val_epoch(self, runner):
+        self._log(runner)

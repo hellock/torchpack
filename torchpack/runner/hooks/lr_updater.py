@@ -1,3 +1,6 @@
+from torchpack.runner.hooks import Hook
+
+
 class LrUpdater(object):
 
     @staticmethod
@@ -34,16 +37,22 @@ class LrUpdater(object):
             multiplier = m
         return base_lr * multiplier
 
-    @staticmethod
-    def update(optimizer, epoch, policy, **kwargs):
+
+class LrUpdaterHook(Hook):
+
+    def __init__(self, policy, **kwargs):
         if isinstance(policy, str):
-            method = getattr(LrUpdater, policy)
+            update_fn = getattr(LrUpdater, policy)
         elif callable(policy):
-            method = policy
+            update_fn = policy
         else:
-            raise TypeError('"policy" must be a string or method')
-        base_lr = optimizer.defaults['lr']
-        lr = method(epoch, base_lr, **kwargs)
-        for param_group in optimizer.param_groups:
+            raise TypeError('"policy" must be a method name or method')
+        self.update_fn = update_fn
+        self.update_args = kwargs
+
+    def before_train_epoch(self, runner):
+        base_lr = runner.optimizer.defaults['lr']
+        lr = self.update_fn(runner.epoch, base_lr, **self.update_args)
+        for param_group in runner.optimizer.param_groups:
             param_group['lr'] = lr
-        return lr
+        runner.lr = lr
