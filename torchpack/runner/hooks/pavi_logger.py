@@ -11,23 +11,13 @@ from six.moves.queue import Empty, Queue
 from torchpack.runner.hooks import Hook
 
 
-class PaviLoggerHook(Hook):
+class PaviLogger(object):
 
-    def __init__(self,
-                 interval,
-                 url,
-                 username=None,
-                 password=None,
-                 instance_id=None,
-                 reset_meter=True,
-                 ignore_last=True):
-        self.interval = interval
+    def __init__(self, url, username=None, password=None, instance_id=None):
         self.url = url
         self.username = self._get_env_var(username, 'PAVI_USERNAME')
         self.password = self._get_env_var(password, 'PAVI_PASSWORD')
         self.instance_id = instance_id
-        self.reset_meter = reset_meter
-        self.ignore_last = ignore_last
         self.log_queue = None
 
     def _get_env_var(self, var, env_var):
@@ -41,8 +31,18 @@ class PaviLoggerHook(Hook):
                 format(env_var))
         return var
 
-    def connect(self, model_name, work_dir=None, info=dict(), timeout=5):
-        print('connecting pavi service {}...'.format(self.url))
+    def connect(self,
+                model_name,
+                work_dir=None,
+                info=dict(),
+                timeout=5,
+                logger=None):
+        if logger:
+            log_info = logger.info
+            log_error = logger.error
+        else:
+            log_info = log_error = print
+        log_info('connecting pavi service {}...'.format(self.url))
         post_data = dict(
             time=str(datetime.now()),
             username=self.username,
@@ -57,24 +57,24 @@ class PaviLoggerHook(Hook):
         try:
             response = requests.post(self.url, json=post_data, timeout=timeout)
         except Exception as ex:
-            print('fail to connect to pavi service: {}'.format(ex))
+            log_error('fail to connect to pavi service: {}'.format(ex))
         else:
             if response.status_code == 200:
                 self.instance_id = response.text
-                print('pavi service connected, instance_id: {}'.format(
+                log_info('pavi service connected, instance_id: {}'.format(
                     self.instance_id))
                 self.log_queue = Queue()
-                self.log_thread = Thread(target=self.post_log)
+                self.log_thread = Thread(target=self.post_worker_fn)
                 self.log_thread.daemon = True
                 self.log_thread.start()
                 return True
             else:
-                print('fail to connect to pavi service, status code: '
-                      '{}, err message: {}'.format(response.status_code,
-                                                   response.reason))
+                log_error('fail to connect to pavi service, status code: '
+                          '{}, err message: {}'.format(response.status_code,
+                                                       response.reason))
         return False
 
-    def post_log(self, max_retry=3, queue_timeout=1, req_timeout=3):
+    def post_worker_fn(self, max_retry=3, queue_timeout=1, req_timeout=3):
         while True:
             try:
                 log = self.log_queue.get(timeout=queue_timeout)
@@ -102,23 +102,51 @@ class PaviLoggerHook(Hook):
                 if retry == max_retry:
                     print('fail to send logs of iteration %d', log['iter_num'])
 
-    def _log(self, runner):
+    def log(self, phase, num_iters, outputs):
         if self.log_queue is not None:
-            log_outs = {
-                var: runner.meter.avg[var]
-                for var in runner.outputs['log_vars']
-            }
             logs = {
                 'time': str(datetime.now()),
                 'instance_id': self.instance_id,
-                'flow_id': runner.mode,
-                'iter_num': runner.num_iters,
-                'outputs': log_outs,
+                'flow_id': phase,
+                'iter_num': num_iters,
+                'outputs': outputs,
                 'msg': ''
             }
             self.log_queue.put(logs)
-            if self.reset_meter:
-                runner.meter.reset()
+
+
+class PaviLoggerHook(Hook):
+
+    def __init__(self,
+                 interval,
+                 url,
+                 username=None,
+                 password=None,
+                 instance_id=None,
+                 reset_meter=True,
+                 ignore_last=True):
+        self.interval = interval
+        self.pavi_logger = PaviLogger(url, username, password, instance_id)
+        self.reset_meter = reset_meter
+        self.ignore_last = ignore_last
+
+    def connect(self,
+                model_name,
+                work_dir=None,
+                info=dict(),
+                timeout=5,
+                logger=None):
+        return self.pavi_logger.connect(model_name, work_dir, info, timeout,
+                                        logger)
+
+    def _log(self, runner):
+        log_outs = {
+            var: runner.meter.avg[var]
+            for var in runner.outputs['log_vars']
+        }
+        self.pavi_logger.log(runner.mode, runner.num_iters, log_outs)
+        if self.reset_meter:
+            runner.meter.reset()
 
     def after_train_iter(self, runner):
         if not self.every_n_inner_iters(runner, self.interval):
