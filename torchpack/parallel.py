@@ -51,5 +51,6 @@ def parallel_test(model_cls,
         idx, res = result_queue.get()
         results[idx] = res
         prog_bar.update()
+    print('\n')
 
     return results

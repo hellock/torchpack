@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-install_requires = ['cvbase', 'six']
+install_requires = ['cvbase', 'six', 'tensorboardX']
 
 
 def readme():

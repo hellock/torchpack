@@ -6,4 +6,5 @@ from .optimizer_stepper import OptimizerStepperHook
 from .meter import AverageMeter, MeterHook
 from .logger import LoggerHook
 from .text_logger import TextLoggerHook
+from .tensorboard_logger import TensorboardLoggerHook
 from .pavi_logger import PaviLogger, PaviLoggerHook

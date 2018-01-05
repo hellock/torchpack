@@ -1,9 +1,24 @@
 # torchpack
 
+[![PyPI Version](https://img.shields.io/pypi/v/torchpack.svg)](https://pypi.python.org/pypi/torchpack)
+
 Torchpack is a set of interfaces to simplify the usage of PyTorch.
 
 Documentation is ongoing.
 
+
+## Installation
+
+- Install with pip. 
+```
+pip install torchpack
+```
+- Install from source.
+```
+git clone https://github.com/hellock/torchpack.git
+cd torchpack
+python setup.py install
+```
 
 ## Example
 
@@ -16,7 +31,14 @@ workflow = [('train', 2), ('val', 1)]  # train 2 epochs and then validate 1 epoc
 max_epoch = 16
 lr_policy = dict(policy='step', step=12)  # decrese learning rate by 10 every 12 epochs
 checkpoint_cfg = dict(interval=1)  # save checkpoint at every epoch
-log_cfg = dict(interval=50)  # log at every 50 iterations
+log_cfg = dict(
+    # log at every 50 iterations
+    interval=50,
+    # two logging hooks, one for printing in terminal and one for tensorboard visualization
+    hooks=[
+        ('TextLoggerHook', {}),
+        ('TensorboardLoggerHook', dict(log_dir=work_dir + '/log'))
+    ])
 
 ######################### file2: main.py ########################
 import torch
