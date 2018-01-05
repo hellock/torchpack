@@ -8,7 +8,7 @@ from threading import Thread
 import requests
 from six.moves.queue import Empty, Queue
 
-from torchpack.runner.hooks import Hook
+from torchpack.runner.hooks import LoggerHook
 
 
 class PaviLogger(object):
@@ -115,20 +115,19 @@ class PaviLogger(object):
             self.log_queue.put(logs)
 
 
-class PaviLoggerHook(Hook):
+class PaviLoggerHook(LoggerHook):
 
     def __init__(self,
-                 interval,
                  url,
                  username=None,
                  password=None,
                  instance_id=None,
+                 interval=10,
                  reset_meter=True,
                  ignore_last=True):
-        self.interval = interval
         self.pavi_logger = PaviLogger(url, username, password, instance_id)
-        self.reset_meter = reset_meter
-        self.ignore_last = ignore_last
+        super(PaviLoggerHook, self).__init__(interval, reset_meter,
+                                             ignore_last)
 
     def connect(self,
                 model_name,
@@ -139,22 +138,9 @@ class PaviLoggerHook(Hook):
         return self.pavi_logger.connect(model_name, work_dir, info, timeout,
                                         logger)
 
-    def _log(self, runner):
+    def log(self, runner):
         log_outs = {
             var: runner.meter.avg[var]
             for var in runner.outputs['log_vars']
         }
         self.pavi_logger.log(runner.mode, runner.num_iters, log_outs)
-        if self.reset_meter:
-            runner.meter.reset()
-
-    def after_train_iter(self, runner):
-        if not self.every_n_inner_iters(runner, self.interval):
-            if not self.end_of_epoch(runner):
-                return
-            elif self.ignore_last:
-                return
-        self._log(runner)
-
-    def after_val_epoch(self, runner):
-        self._log(runner)

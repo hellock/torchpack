@@ -4,9 +4,9 @@ import time
 
 import torch
 from torchpack.io import load_checkpoint, save_checkpoint
+from torchpack.runner import hooks
 from torchpack.runner.hooks import (Hook, LrUpdaterHook, CheckpointSaverHook,
-                                    BasicLoggerHook, MeterHook,
-                                    OptimizerStepperHook)
+                                    MeterHook, OptimizerStepperHook)
 
 
 class Runner(object):
@@ -123,12 +123,35 @@ class Runner(object):
                     if mode == 'train' and self.epoch >= max_epoch:
                         return
                     epoch_runner(data_loaders[i], **kwargs)
+        time.sleep(1)  # wait for some hooks like loggers to finish
         self.call_hook('after_run')
 
-    def register_default_hooks(self, lr_config, checkpoint_config, log_config):
+    def register_logger_hooks(self, log_config):
+        self.register_hook(MeterHook())
+        log_interval = log_config['interval']
+        for logger_name, args in log_config['hooks']:
+            if isinstance(logger_name, str):
+                logger_cls = getattr(hooks, logger_name)
+            elif isinstance(logger_name, type):
+                logger_cls = logger_name
+            else:
+                raise TypeError(
+                    'logger name must be a string of hook type, not {}'.format(
+                        logger_name))
+            kwargs = args.copy()
+            kwargs['reset_meter'] = False
+            if 'interval' not in kwargs:
+                kwargs['interval'] = log_interval
+            self.register_hook(logger_cls(**kwargs))
+        self.hooks[-1].reset_meter = True
+
+    def register_default_hooks(self,
+                               lr_config,
+                               checkpoint_config,
+                               log_config=None):
         """Register several default hooks"""
         self.register_hook(LrUpdaterHook(**lr_config))
-        self.register_hook(CheckpointSaverHook(**checkpoint_config))
         self.register_hook(OptimizerStepperHook())
-        self.register_hook(MeterHook())
-        self.register_hook(BasicLoggerHook(**log_config))
+        self.register_hook(CheckpointSaverHook(**checkpoint_config))
+        if log_config is not None:
+            self.register_logger_hooks(log_config)
