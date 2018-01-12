@@ -52,5 +52,7 @@ def parallel_test(model_cls,
         results[idx] = res
         prog_bar.update()
     print('\n')
+    for worker in workers:
+        worker.terminate()
 
     return results
