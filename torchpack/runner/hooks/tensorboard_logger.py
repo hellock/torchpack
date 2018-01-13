@@ -1,5 +1,3 @@
-from tensorboardX import SummaryWriter
-
 from torchpack.runner.hooks import LoggerHook
 
 
@@ -12,7 +10,13 @@ class TensorboardLoggerHook(LoggerHook):
                  ignore_last=True):
         super(TensorboardLoggerHook, self).__init__(interval, reset_meter,
                                                     ignore_last)
-        self.writer = SummaryWriter(log_dir)
+        try:
+            from tensorboardX import SummaryWriter
+        except ImportError:
+            raise ImportError('Please install tensorflow and tensorboardX '
+                              'to use TensorboardLoggerHook.')
+        else:
+            self.writer = SummaryWriter(log_dir)
 
     def log(self, runner):
         for var in runner.outputs['log_vars']:

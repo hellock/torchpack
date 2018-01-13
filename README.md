@@ -20,6 +20,14 @@ cd torchpack
 python setup.py install
 ```
 
+**Note**: If you want to use tensorboard to visualize the training process, you need to
+install tensorflow([`installation guide`](https://www.tensorflow.org/install/install_linux)) and tensorboardX(`pip install tensorboardX`).
+
+## What can torchpack do
+
+Torchpack aims to help users to start training with less code, while stays
+flexible and configurable. It provides a `Runner` with lots of `Hook`s.
+
 ## Example
 
 ```python
