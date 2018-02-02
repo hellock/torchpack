@@ -61,6 +61,7 @@ def save_checkpoint(model,
                     num_iters,
                     out_dir,
                     filename_tmpl='epoch_{}.pth',
+                    optimizer=None,
                     is_best=False):
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
@@ -71,11 +72,14 @@ def save_checkpoint(model,
     for key, val in state_dict.items():
         state_dict_cpu[key] = val.cpu()
     filename = os.path.join(out_dir, filename_tmpl.format(epoch))
-    torch.save({
+    checkpoint_info = {
         'epoch': epoch,
         'num_iters': num_iters,
         'state_dict': state_dict_cpu
-    }, filename)
+    }
+    if optimizer is not None:
+        checkpoint_info['optimizer'] = optimizer.state_dict()
+    torch.save(checkpoint_info, filename)
     latest_link = os.path.join(out_dir, 'latest.pth')
     make_link(filename, latest_link)
     if is_best:

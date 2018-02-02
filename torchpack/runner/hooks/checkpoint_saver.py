@@ -4,8 +4,9 @@ from torchpack.runner.hooks import Hook
 
 class CheckpointSaverHook(Hook):
 
-    def __init__(self, interval, out_dir=None, **kwargs):
+    def __init__(self, interval, save_optimizer=True, out_dir=None, **kwargs):
         self.interval = interval
+        self.save_optimizer = save_optimizer
         self.out_dir = out_dir
         self.args = kwargs
 
@@ -14,5 +15,11 @@ class CheckpointSaverHook(Hook):
             return
         if not self.out_dir:
             self.out_dir = runner.work_dir
-        save_checkpoint(runner.model, runner.epoch + 1, runner.num_iters,
-                        self.out_dir, **self.args)
+        optimizer = runner.optimizer if self.save_optimizer else None
+        save_checkpoint(
+            model=runner.model,
+            epoch=runner.epoch + 1,
+            num_iters=runner.num_iters,
+            out_dir=self.out_dir,
+            optimizer=optimizer,
+            **self.args)

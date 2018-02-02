@@ -102,10 +102,12 @@ class Runner(object):
             self.call_hook('after_val_iter')
         self.call_hook('after_val_epoch')
 
-    def resume(self, checkpoint):
+    def resume(self, checkpoint, resume_optimizer=True):
         checkpoint = self.load_checkpoint(checkpoint)
         self.epoch = checkpoint['epoch']
         self.num_iters = checkpoint['num_iters']
+        if 'optimizer' in checkpoint and resume_optimizer:
+            self.optimizer.load_state_dict(checkpoint['optimizer'])
         self.logger.info('resumed epoch %d, iter %d', self.epoch,
                          self.num_iters)
 
