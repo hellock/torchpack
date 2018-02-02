@@ -26,7 +26,7 @@ install tensorflow([`installation guide`](https://www.tensorflow.org/install/ins
 ## What can torchpack do
 
 Torchpack aims to help users to start training with less code, while stays
-flexible and configurable. It provides a `Runner` with lots of `Hook`s.
+flexible and configurable. It provides a `Runner` with lots of `Hooks`.
 
 ## Example
 
