@@ -5,9 +5,11 @@ class TextLoggerHook(LoggerHook):
 
     def log(self, runner):
         if runner.mode == 'train':
-            log_info = 'Epoch [{}][{}/{}]\tlr: {:.5f}\t'.format(
+            lr_str = ', '.join(
+                ['{:.5f}'.format(lr) for lr in runner.current_lr()])
+            log_info = 'Epoch [{}][{}/{}]\tlr: {}\t'.format(
                 runner.epoch + 1, runner.num_epoch_iters + 1,
-                len(runner.data_loader), runner.lr)
+                len(runner.data_loader), lr_str)
         else:
             log_info = 'Epoch({}) [{}][{}]\t'.format(
                 runner.mode, runner.epoch, runner.num_epoch_iters + 1)

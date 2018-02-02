@@ -73,16 +73,27 @@ class LrUpdaterHook(Hook):
         self.warm_up_ratio = warm_up_ratio
         self.update_args = kwargs
 
-        self.normal_lr = 0
+        self.base_lr = []
+        self.normal_lr = []
 
-    def _set_lr(self, runner, lr):
-        for param_group in runner.optimizer.param_groups:
+    def _set_lr(self, runner, lr_groups):
+        for param_group, lr in zip(runner.optimizer.param_groups, lr_groups):
             param_group['lr'] = lr
-        runner.lr = lr
+
+    def before_run(self, runner):
+        # NOTE: when resuming from a checkpoint, if 'initial_lr' is not saved,
+        # it will be set according to the optimizer params
+        for group in runner.optimizer.param_groups:
+            group.setdefault('initial_lr', group['lr'])
+        self.base_lr = [
+            group['initial_lr'] for group in runner.optimizer.param_groups
+        ]
 
     def before_train_epoch(self, runner):
-        base_lr = runner.optimizer.defaults['lr']
-        lr = self.update_fn(runner.epoch, base_lr, **self.update_args)
+        lr = [
+            self.update_fn(runner.epoch, _base_lr, **self.update_args)
+            for _base_lr in self.base_lr
+        ]
         self._set_lr(runner, lr)
         self.normal_lr = lr
 
@@ -91,15 +102,15 @@ class LrUpdaterHook(Hook):
             return
         cur_iters = runner.num_iters
         if cur_iters < self.warm_up_iters:
-            if self.warm_up_type == 'constant':
+            if self.warm_up == 'constant':
                 # only need to set lr at the first iteration of each epoch
                 if runner.num_epoch_iters != 0:
                     return
-                lr = self.normal_lr * self.warm_up_ratio
-            elif self.warm_up_type == 'linear':
+                lr = [_lr * self.warm_up_ratio for _lr in self.normal_lr]
+            elif self.warm_up == 'linear':
                 k = (1 - cur_iters / self.warm_up_iters) * (
                     1 - self.warm_up_ratio)
-                lr = self.normal_lr * (1 - k)
+                lr = [_lr * (1 - k) for _lr in self.normal_lr]
             self._set_lr(runner, lr)
         elif cur_iters == self.warm_up_iters:
             self._set_lr(runner, self.normal_lr)

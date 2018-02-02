@@ -38,6 +38,9 @@ class Runner(object):
                 '"optimizer" must be either an Optimizer object or a dict')
         return optimizer
 
+    def current_lr(self):
+        return [group['lr'] for group in self.optimizer.param_groups]
+
     def init_logger(self, log_dir=None, level=logging.INFO):
         logging.basicConfig(
             format='%(asctime)s - %(levelname)s - %(message)s', level=level)
