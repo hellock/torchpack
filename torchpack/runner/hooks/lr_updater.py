@@ -1,3 +1,5 @@
+from __future__ import division
+
 from torchpack.runner.hooks import Hook
 
 
@@ -37,26 +39,41 @@ class LrUpdater(object):
             multiplier = m
         return base_lr * multiplier
 
+
 class LrUpdaterHook(Hook):
-    
-    def __init__(self, policy, warm_up_iters=0, warm_up_ratio=-1,
-                 warm_up_type='constant', **kwargs):
+
+    def __init__(self,
+                 policy,
+                 warm_up=None,
+                 warm_up_iters=0,
+                 warm_up_ratio=0.1,
+                 **kwargs):
+        # validate the "policy" argument
         if isinstance(policy, str):
             update_fn = getattr(LrUpdater, policy)
         elif callable(policy):
             update_fn = policy
         else:
             raise TypeError('"policy" must be a method name or method')
+        # validate the "warm_up" argument
+        if warm_up is not None:
+            if warm_up not in ['constant', 'linear']:
+                raise ValueError(
+                    '"{}" is not supported for warming up, currently supported'
+                    ' types are "constant" and "linear"'.format(warm_up))
+        if warm_up is not None:
+            assert warm_up_iters > 0, \
+                '"warm_up_iters" must be a positive integer'
+            assert 0 < warm_up_ratio <= 1.0, \
+                '"warm_up_ratio" must be in range (0,1]'
+
         self.update_fn = update_fn
-        self.normal_lr = 0
+        self.warm_up = warm_up
         self.warm_up_iters = warm_up_iters
         self.warm_up_ratio = warm_up_ratio
-        assert warm_up_type == 'constant' or warm_up_type == 'linear', \
-             'only support constant and linear warm-up'
-        self.warm_up_type = warm_up_type
-        if self.warm_up_iters != 0:
-            assert 0 < warm_up_ratio <= 1.0, 'warm up ratio should in range (0,1]'
         self.update_args = kwargs
+
+        self.normal_lr = 0
 
     def _set_lr(self, runner, lr):
         for param_group in runner.optimizer.param_groups:
@@ -70,21 +87,19 @@ class LrUpdaterHook(Hook):
         self.normal_lr = lr
 
     def before_train_iter(self, runner):
-        if self.warm_up_iters == 0:
+        if self.warm_up is None:
             return
         cur_iters = runner.num_iters
         if cur_iters < self.warm_up_iters:
             if self.warm_up_type == 'constant':
-                if runner.num_epoch_iters == 0:
-                    lr = self.normal_lr*self.warm_up_ratio
-                else:
+                # only need to set lr at the first iteration of each epoch
+                if runner.num_epoch_iters != 0:
                     return
+                lr = self.normal_lr * self.warm_up_ratio
             elif self.warm_up_type == 'linear':
-                linear_rate = 1 - cur_iters/float(self.warm_up_iters)
-                lr = self.normal_lr*(1-(1-self.warm_up_ratio)*linear_rate)
-            else:
-                raise TypeError('only support constant and linear warm-up')
+                k = (1 - cur_iters / self.warm_up_iters) * (
+                    1 - self.warm_up_ratio)
+                lr = self.normal_lr * (1 - k)
             self._set_lr(runner, lr)
         elif cur_iters == self.warm_up_iters:
-            lr = self.normal_lr
-            self._set_lr(runner, lr)
+            self._set_lr(runner, self.normal_lr)
