@@ -66,12 +66,12 @@ class Runner(object):
         self.logger.info('load checkpoint from %s', filename)
         return load_checkpoint(self.model, filename)
 
-    def save_checkpoint(self, dir, filename_tmpl='epoch_{}.pth'):
+    def save_checkpoint(self, out_dir, filename_tmpl='epoch_{}.pth'):
         save_checkpoint(
             self.model,
             self.epoch + 1,
             self.num_iters,
-            our_dir=dir,
+            out_dir=out_dir,
             filename_tmpl=filename_tmpl)
 
     def train(self, data_loader, **kwargs):
