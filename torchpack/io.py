@@ -56,6 +56,13 @@ def make_link(filename, link):
     os.symlink(filename, link)
 
 
+def state_dict_to_cpu(state_dict):
+    state_dict_cpu = OrderedDict()
+    for key, val in state_dict.items():
+        state_dict_cpu[key] = val.cpu()
+    return state_dict_cpu
+
+
 def save_checkpoint(model,
                     epoch,
                     num_iters,
@@ -67,18 +74,15 @@ def save_checkpoint(model,
         os.makedirs(out_dir)
     if isinstance(model, torch.nn.DataParallel):
         model = model.module
-    state_dict = model.state_dict()
-    state_dict_cpu = OrderedDict()
-    for key, val in state_dict.items():
-        state_dict_cpu[key] = val.cpu()
     filename = os.path.join(out_dir, filename_tmpl.format(epoch))
     checkpoint_info = {
         'epoch': epoch,
         'num_iters': num_iters,
-        'state_dict': state_dict_cpu
+        'state_dict': state_dict_to_cpu(model.state_dict())
     }
     if optimizer is not None:
-        checkpoint_info['optimizer'] = optimizer.state_dict()
+        checkpoint_info['optimizer'] = state_dict_to_cpu(
+            optimizer.state_dict())
     torch.save(checkpoint_info, filename)
     latest_link = os.path.join(out_dir, 'latest.pth')
     make_link(filename, latest_link)
