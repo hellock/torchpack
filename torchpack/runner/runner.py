@@ -152,11 +152,16 @@ class Runner(object):
 
     def register_default_hooks(self,
                                lr_config,
-                               checkpoint_config,
+                               grad_clip_config=None,
+                               checkpoint_config=None,
                                log_config=None):
         """Register several default hooks"""
+        if grad_clip_config is None:
+            grad_clip_config = {}
+        if checkpoint_config is None:
+            checkpoint_config = {}
         self.register_hook(LrUpdaterHook(**lr_config))
-        self.register_hook(OptimizerStepperHook())
+        self.register_hook(OptimizerStepperHook(**grad_clip_config))
         self.register_hook(CheckpointSaverHook(**checkpoint_config))
         if log_config is not None:
             self.register_logger_hooks(log_config)
