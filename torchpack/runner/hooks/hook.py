@@ -43,13 +43,13 @@ class Hook(object):
         self.after_iter(runner)
 
     def every_n_epochs(self, runner, n):
-        return (runner.epoch + 1) % self.interval == 0
+        return (runner.epoch + 1) % n == 0 if n > 0 else False
 
     def every_n_inner_iters(self, runner, n):
-        return (runner.num_epoch_iters + 1) % self.interval == 0
+        return (runner.num_epoch_iters + 1) % n == 0 if n > 0 else False
 
     def every_n_iters(self, runner, n):
-        return (runner.num_iters + 1) % self.interval == 0
+        return (runner.num_iters + 1) % n == 0 if n > 0 else False
 
     def end_of_epoch(self, runner):
         return runner.num_epoch_iters + 1 == len(runner.data_loader)
