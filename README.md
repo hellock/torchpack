@@ -72,7 +72,9 @@ def batch_processor(model, data, train_mode):
 cfg = Config.from_file('config.py')  # or config.yaml/config.json
 model = resnet18()
 runner = Runner(model, cfg.optimizer, batch_processor, cfg.work_dir)
-runner.register_default_hooks(cfg.lr_policy, cfg.checkpoint_cfg, cfg.log_cfg)
+runner.register_default_hooks(lr_config=cfg.lr_policy,
+                              checkpoint_config=cfg.checkpoint_cfg,
+                              log_config=cfg.log_cfg)
 
 runner.run([train_loader, val_loader], cfg.workflow, cfg.max_epoch)
 ```
