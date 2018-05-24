@@ -4,36 +4,44 @@ from collections import OrderedDict
 import torch
 
 
-def load_state_dict(module, state_dict, strict=False):
+def load_state_dict(module, state_dict, strict=False, logger=None):
+    unexpected_keys = []
     own_state = module.state_dict()
     for name, param in state_dict.items():
-        if name in own_state:
-            if isinstance(param, torch.nn.Parameter):
-                # backwards compatibility for serialized parameters
-                param = param.data
-            try:
-                own_state[name].copy_(param)
-            except Exception:
-                raise RuntimeError('While copying the parameter named {}, '
-                                   'whose dimensions in the model are {} and '
-                                   'whose dimensions in the checkpoint are {}.'
-                                   .format(name, own_state[name].size(),
-                                           param.size()))
-        elif strict:
-            raise KeyError(
-                'unexpected key "{}" in source state_dict'.format(name))
-        else:
-            print('ignore key "{}" in source state_dict'.format(name))
-    missing = set(own_state.keys()) - set(state_dict.keys())
-    if len(missing) > 0:
-        if strict:
-            raise KeyError(
-                'missing keys in source state_dict: "{}"'.format(missing))
-        else:
-            print('missing keys in source state_dict: "{}"'.format(missing))
+        if name not in own_state:
+            unexpected_keys.append(name)
+            continue
+        if isinstance(param, torch.nn.Parameter):
+            # backwards compatibility for serialized parameters
+            param = param.data
+
+        try:
+            own_state[name].copy_(param)
+        except Exception:
+            raise RuntimeError('While copying the parameter named {}, '
+                               'whose dimensions in the model are {} and '
+                               'whose dimensions in the checkpoint are {}.'
+                               .format(name, own_state[name].size(),
+                                       param.size()))
+    missing_keys = set(own_state.keys()) - set(state_dict.keys())
+
+    err_msgs = []
+    if unexpected_keys:
+        err_msgs.append('unexpected key in source state_dict: {}\n'.format(
+            ' '.join(unexpected_keys)))
+    if missing_keys:
+        err_msgs.append('missing keys in source state_dict: {}\n'.format(
+            ' '.join(missing_keys)))
+    msg = '\n'.join(err_msgs)
+    if strict:
+        raise RuntimeError(msg)
+    elif logger is not None:
+        logger.warn(msg)
+    else:
+        print(msg)
 
 
-def load_checkpoint(model, filename, strict=False):
+def load_checkpoint(model, filename, strict=False, logger=None):
     if not os.path.isfile(filename):
         raise IOError('{} is not a checkpoint file'.format(filename))
     checkpoint = torch.load(filename)
@@ -44,9 +52,9 @@ def load_checkpoint(model, filename, strict=False):
             for k, v in checkpoint['state_dict'].items()
         }
     if isinstance(model, torch.nn.DataParallel):
-        load_state_dict(model.module, state_dict, strict)
+        load_state_dict(model.module, state_dict, strict, logger)
     else:
-        load_state_dict(model, state_dict, strict)
+        load_state_dict(model, state_dict, strict, logger)
     return checkpoint
 
 
