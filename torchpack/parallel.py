@@ -16,7 +16,7 @@ def worker_func(model_cls, model_kwargs, checkpoint, dataset, data_func,
     while True:
         idx = idx_queue.get()
         data = dataset[idx]
-        result = model(*data_func(data, gpu_id))
+        result = model(**data_func(data, gpu_id))
         result_queue.put((idx, result))
 
 
