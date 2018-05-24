@@ -1,4 +1,4 @@
-from torch.nn.utils.clip_grad import clip_grad_norm
+from torch.nn.utils import clip_grad
 
 from torchpack.runner.hooks import Hook
 
@@ -13,7 +13,7 @@ class OptimizerStepperHook(Hook):
     def after_train_iter(self, runner):
         runner.optimizer.zero_grad()
         runner.outputs['loss'].backward()
-        clip_grad_norm(
+        clip_grad.clip_grad_norm_(
             filter(lambda p: p.requires_grad, runner.model.parameters()),
             max_norm=self.max_norm,
             norm_type=self.norm_type)

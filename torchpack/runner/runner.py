@@ -1,12 +1,15 @@
 import logging
 import os
 import time
+from getpass import getuser
+from socket import gethostname
 
 import torch
 from torchpack.io import load_checkpoint, save_checkpoint
 from torchpack.runner import hooks
-from torchpack.runner.hooks import (Hook, LrUpdaterHook, CheckpointSaverHook,
-                                    MeterHook, OptimizerStepperHook)
+from torchpack.runner.hooks import (lr_updater, Hook, LrUpdaterHook,
+                                    CheckpointSaverHook, MeterHook,
+                                    OptimizerStepperHook)
 
 
 class Runner(object):
@@ -15,15 +18,27 @@ class Runner(object):
                  model,
                  optimizer,
                  batch_processor,
-                 work_dir,
+                 work_dir=None,
                  log_level=logging.INFO):
         self.model = model
         self.optimizer = self.set_optimizer(optimizer)
+        assert callable(batch_processor)
         self.batch_processor = batch_processor
-        self.work_dir = work_dir
-        self.hooks = []
+
+        if isinstance(work_dir, str):
+            self.work_dir = os.path.abspath(work_dir)
+            if not os.path.isdir(self.work_dir):
+                os.makedirs(self.work_dir)
+        elif work_dir is None:
+            self.work_dir = work_dir
+        else:
+            raise TypeError('"work_dir" must be a str or None')
+
         self.logger = self.init_logger(work_dir, log_level)
 
+        self.hooks = []
+        self.max_epoch = 0
+        self.max_iter = 0
         self.epoch = 0
         self.num_iters = 0
         self.num_epoch_iters = 0
@@ -34,25 +49,23 @@ class Runner(object):
             optim_cls = getattr(torch.optim, optimizer['algorithm'])
             optimizer = optim_cls(self.model.parameters(), **optimizer['args'])
         elif not isinstance(optimizer, torch.optim.Optimizer):
-            raise ValueError(
+            raise TypeError(
                 '"optimizer" must be either an Optimizer object or a dict')
         return optimizer
-
-    def current_lr(self):
-        return [group['lr'] for group in self.optimizer.param_groups]
 
     def init_logger(self, log_dir=None, level=logging.INFO):
         logging.basicConfig(
             format='%(asctime)s - %(levelname)s - %(message)s', level=level)
         logger = logging.getLogger(__name__)
         if log_dir:
-            if not os.path.isdir(log_dir):
-                os.makedirs(log_dir)
             filename = time.strftime('%Y%m%d_%H%M%S',
                                      time.localtime()) + '.log'
             log_file = os.path.join(log_dir, filename)
             logger.addHandler(logging.FileHandler(log_file, 'w'))
         return logger
+
+    def current_lr(self):
+        return [group['lr'] for group in self.optimizer.param_groups]
 
     def register_hook(self, hook):
         assert isinstance(hook, Hook)
@@ -62,9 +75,9 @@ class Runner(object):
         for hook in self.hooks:
             getattr(hook, fn_name)(self)
 
-    def load_checkpoint(self, filename):
+    def load_checkpoint(self, filename, strict=False):
         self.logger.info('load checkpoint from %s', filename)
-        return load_checkpoint(self.model, filename)
+        return load_checkpoint(self.model, filename, strict, self.logger)
 
     def save_checkpoint(self, out_dir, filename_tmpl='epoch_{}.pth'):
         save_checkpoint(
@@ -78,6 +91,7 @@ class Runner(object):
         self.model.train()
         self.mode = 'train'
         self.data_loader = data_loader
+        self.max_iter = self.max_epoch * len(data_loader)
         self.call_hook('before_train_epoch')
         for i, data_batch in enumerate(data_loader):
             self.num_epoch_iters = i
@@ -113,8 +127,11 @@ class Runner(object):
 
     def run(self, data_loaders, workflow, max_epoch, **kwargs):
         assert isinstance(data_loaders, list)
-        self.logger.info('Start running, workflow: %s, max: %d epochs',
-                         workflow, max_epoch)
+        self.max_epoch = max_epoch
+        work_dir = self.work_dir if self.work_dir is not None else 'NONE'
+        self.logger.info('Start running, host: %s@%s, work_dir: %s', getuser(),
+                         gethostname(), work_dir)
+        self.logger.info('workflow: %s, max: %d epochs', workflow, max_epoch)
         self.call_hook('before_run')
         while self.epoch < max_epoch:
             for i, flow in enumerate(workflow):
@@ -130,6 +147,20 @@ class Runner(object):
                     epoch_runner(data_loaders[i], **kwargs)
         time.sleep(1)  # wait for some hooks like loggers to finish
         self.call_hook('after_run')
+
+    def register_lr_hooks(self, lr_config):
+        if isinstance(lr_config, LrUpdaterHook):
+            self.register_hook(lr_config)
+        elif isinstance(lr_config, dict):
+            assert 'policy' in lr_config
+            hook_name = lr_config['policy'].title() + 'LrUpdaterHook'
+            if not hasattr(lr_updater, hook_name):
+                raise ValueError('"{}" does not exist'.format(hook_name))
+            hook_cls = getattr(lr_updater, hook_name)
+            self.register_hook(hook_cls(**lr_config))
+        else:
+            raise TypeError('"lr_config" must be either a LrUpdaterHook object'
+                            ' or dict, not {}'.format(type(lr_config)))
 
     def register_logger_hooks(self, log_config):
         self.register_hook(MeterHook())
@@ -160,7 +191,7 @@ class Runner(object):
             grad_clip_config = {}
         if checkpoint_config is None:
             checkpoint_config = {}
-        self.register_hook(LrUpdaterHook(**lr_config))
+        self.register_lr_hooks(lr_config)
         self.register_hook(OptimizerStepperHook(**grad_clip_config))
         self.register_hook(CheckpointSaverHook(**checkpoint_config))
         if log_config is not None:
