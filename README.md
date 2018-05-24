@@ -78,3 +78,9 @@ runner.register_default_hooks(lr_config=cfg.lr_policy,
 
 runner.run([train_loader, val_loader], cfg.workflow, cfg.max_epoch)
 ```
+
+For a full example of training on ImageNet, please see `examples/train_imagenet.py`.
+
+```shell
+python examples/train_imagenet.py examples/config.py
+```
