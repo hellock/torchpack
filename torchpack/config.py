@@ -4,8 +4,6 @@ from argparse import ArgumentParser
 from collections import Iterable
 from importlib import import_module
 
-import cvbase as cvb
-
 
 def add_args(parser, cfg, prefix=''):
     for k, v in cfg.items():
@@ -40,6 +38,7 @@ class Config(object):
                 if not name.startswith(('__', '_'))
             }
         elif filename.endswith(('.yaml', '.json')):
+            import cvbase as cvb
             config_dict = cvb.load(filename)
         else:
             raise IOError(
