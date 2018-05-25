@@ -56,17 +56,14 @@ from collections import OrderedDict
 # define how to process a batch and return a dict
 def batch_processor(model, data, train_mode):
     img, label = data
-    volatile = False if train_mode else True
-    img_var = torch.autograd.Variable(img, volatile=volatile)
-    label_var = torch.autograd.Variable(label, requires_grad=False)
+    label = label.cuda(non_blocking=True)
     pred = model(img)
-    loss = F.cross_entropy(pred, label_var)
+    loss = F.cross_entropy(pred, label)
     accuracy = get_accuracy(pred, label_var)
     log_vars = OrderedDict()
-    log_vars['loss'] = loss.data[0]
-    log_vars['accuracy'] = accuracy.data[0]
-    outputs = dict(
-        loss=loss, log_vars=log_vars, num_samples=img.size(0))
+    log_vars['loss'] = loss.item()
+    log_vars['accuracy'] = accuracy.item()
+    outputs = dict(loss=loss, log_vars=log_vars, num_samples=img.size(0))
     return outputs
 
 cfg = Config.from_file('config.py')  # or config.yaml/config.json
