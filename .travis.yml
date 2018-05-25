@@ -7,6 +7,7 @@ python:
 
 install:
   - bash travis/install_pytorch.sh
+  - pip install .
 
 script: pytest
 

@@ -1,6 +1,7 @@
 from setuptools import find_packages, setup
 
-install_requires = ['cvbase', 'six']
+with open('requirements.txt', 'r') as f:
+    install_requires = [line for line in f]
 
 
 def readme():
