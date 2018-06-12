@@ -1,4 +1,4 @@
-from torchpack.runner.hooks import Hook
+from .hook import Hook
 
 
 class ClosureHook(Hook):

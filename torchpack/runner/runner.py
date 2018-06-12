@@ -1,15 +1,14 @@
 import logging
 import os
 import time
-from getpass import getuser
-from socket import gethostname
 
 import torch
+from torch.nn.parallel import DataParallel, DistributedDataParallel
+
 from torchpack.io import load_checkpoint, save_checkpoint
-from torchpack.runner import hooks
-from torchpack.runner.hooks import (lr_updater, Hook, LrUpdaterHook,
-                                    CheckpointSaverHook, MeterHook,
-                                    OptimizerStepperHook)
+from torchpack.runner.hooks import (Hook, LrUpdaterHook, CheckpointSaverHook,
+                                    MeterHook, OptimizerStepperHook)
+from torchpack.runner.utils import get_dist_info, get_host_info
 
 
 class Runner(object):
@@ -25,6 +24,8 @@ class Runner(object):
         assert callable(batch_processor)
         self.batch_processor = batch_processor
 
+        self.rank, self.world_size = get_dist_info()
+
         if isinstance(work_dir, str):
             self.work_dir = os.path.abspath(work_dir)
             if not os.path.isdir(self.work_dir):
@@ -36,6 +37,11 @@ class Runner(object):
 
         self.logger = self.init_logger(work_dir, log_level)
 
+        if isinstance(self.model, (DataParallel, DistributedDataParallel)):
+            self._model_name = self.model.module.__class__.__name__
+        else:
+            self._model_name = self.model.__class__.__name__
+
         self.hooks = []
         self.max_epoch = 0
         self.max_iter = 0
@@ -43,6 +49,10 @@ class Runner(object):
         self.num_iters = 0
         self.num_epoch_iters = 0
         self.mode = None
+
+    @property
+    def model_name(self):
+        return self._model_name
 
     def set_optimizer(self, optimizer):
         if isinstance(optimizer, dict):
@@ -58,8 +68,8 @@ class Runner(object):
             format='%(asctime)s - %(levelname)s - %(message)s', level=level)
         logger = logging.getLogger(__name__)
         if log_dir:
-            filename = time.strftime('%Y%m%d_%H%M%S',
-                                     time.localtime()) + '.log'
+            filename = '{}_{}.log'.format(
+                time.strftime('%Y%m%d_%H%M%S', time.localtime()), self.rank)
             log_file = os.path.join(log_dir, filename)
             logger.addHandler(logging.FileHandler(log_file, 'w'))
         return logger
@@ -129,8 +139,8 @@ class Runner(object):
         assert isinstance(data_loaders, list)
         self.max_epoch = max_epoch
         work_dir = self.work_dir if self.work_dir is not None else 'NONE'
-        self.logger.info('Start running, host: %s@%s, work_dir: %s', getuser(),
-                         gethostname(), work_dir)
+        self.logger.info('Start running, host: %s, work_dir: %s',
+                         get_host_info(), work_dir)
         self.logger.info('workflow: %s, max: %d epochs', workflow, max_epoch)
         self.call_hook('before_run')
         while self.epoch < max_epoch:
@@ -153,6 +163,7 @@ class Runner(object):
             self.register_hook(lr_config)
         elif isinstance(lr_config, dict):
             assert 'policy' in lr_config
+            from .hooks import lr_updater
             hook_name = lr_config['policy'].title() + 'LrUpdaterHook'
             if not hasattr(lr_updater, hook_name):
                 raise ValueError('"{}" does not exist'.format(hook_name))
@@ -165,6 +176,7 @@ class Runner(object):
     def register_logger_hooks(self, log_config):
         self.register_hook(MeterHook())
         log_interval = log_config['interval']
+        from . import hooks
         for logger_name, args in log_config['hooks']:
             if isinstance(logger_name, str):
                 logger_cls = getattr(hooks, logger_name)

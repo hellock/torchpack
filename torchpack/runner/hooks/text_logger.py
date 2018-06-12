@@ -1,4 +1,4 @@
-from torchpack.runner.hooks import LoggerHook
+from .logger import LoggerHook
 
 
 class TextLoggerHook(LoggerHook):
@@ -20,8 +20,8 @@ class TextLoggerHook(LoggerHook):
             for var in runner.outputs['log_vars']:
                 if var == 'loss':
                     continue
-                loss_items.append(
-                    '{}: {:.4f}'.format(var, runner.meter.avg[var]))
+                loss_items.append('{}: {:.4f}'.format(var,
+                                                      runner.meter.avg[var]))
             log_info += ' (' + ', '.join(loss_items) + ')'
         runner.logger.info(log_info)
         if self.reset_meter:

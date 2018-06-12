@@ -3,14 +3,13 @@ from __future__ import print_function
 import os
 import time
 from datetime import datetime
-from getpass import getuser
-from socket import gethostname
 from threading import Thread
 
 import requests
 from six.moves.queue import Empty, Queue
 
-from torchpack.runner.hooks import LoggerHook
+from .logger import LoggerHook
+from ..utils import master_only, get_host_info
 
 
 class PaviLogger(object):
@@ -55,7 +54,7 @@ class PaviLogger(object):
             session_file=info.get('session_file', ''),
             session_text=info.get('session_text', ''),
             model_text=info.get('model_text', ''),
-            device='{}@{}'.format(getuser(), gethostname()))
+            device=get_host_info())
         try:
             response = requests.post(self.url, json=post_data, timeout=timeout)
         except Exception as ex:
@@ -131,6 +130,7 @@ class PaviLoggerHook(LoggerHook):
         super(PaviLoggerHook, self).__init__(interval, reset_meter,
                                              ignore_last)
 
+    @master_only
     def connect(self,
                 model_name,
                 work_dir=None,
@@ -140,6 +140,7 @@ class PaviLoggerHook(LoggerHook):
         return self.pavi_logger.connect(model_name, work_dir, info, timeout,
                                         logger)
 
+    @master_only
     def log(self, runner):
         log_outs = {
             var: runner.meter.avg[var]

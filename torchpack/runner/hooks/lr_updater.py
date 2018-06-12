@@ -1,6 +1,6 @@
 from __future__ import division
 
-from torchpack.runner.hooks import Hook
+from .hook import Hook
 
 
 class LrUpdaterHook(Hook):

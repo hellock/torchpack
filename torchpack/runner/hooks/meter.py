@@ -1,7 +1,7 @@
 import time
 from collections import defaultdict
 
-from torchpack.runner.hooks import Hook
+from .hook import Hook
 
 
 class AverageMeter(object):

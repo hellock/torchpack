@@ -1,5 +1,6 @@
 from torchpack.io import save_checkpoint
-from torchpack.runner.hooks import Hook
+from .hook import Hook
+from ..utils import master_only
 
 
 class CheckpointSaverHook(Hook):
@@ -14,6 +15,7 @@ class CheckpointSaverHook(Hook):
         self.out_dir = out_dir
         self.args = kwargs
 
+    @master_only
     def after_train_epoch(self, runner):
         if not self.every_n_epochs(runner, self.interval):
             return
