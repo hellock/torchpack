@@ -28,10 +28,10 @@ def load_state_dict(module, state_dict, strict=False, logger=None):
     err_msgs = []
     if unexpected_keys:
         err_msgs.append('unexpected key in source state_dict: {}\n'.format(
-            ' '.join(unexpected_keys)))
+            ', '.join(unexpected_keys)))
     if missing_keys:
         err_msgs.append('missing keys in source state_dict: {}\n'.format(
-            ' '.join(missing_keys)))
+            ', '.join(missing_keys)))
     msg = '\n'.join(err_msgs)
     if strict:
         raise RuntimeError(msg)

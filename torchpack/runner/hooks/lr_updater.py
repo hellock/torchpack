@@ -97,7 +97,7 @@ class StepLrUpdaterHook(LrUpdaterHook):
     def __init__(self, step, gamma=0.1, **kwargs):
         assert isinstance(step, (list, int))
         if isinstance(step, list):
-            for s in self.step:
+            for s in step:
                 assert isinstance(s, int) and s > 0
         elif isinstance(step, int):
             assert step > 0

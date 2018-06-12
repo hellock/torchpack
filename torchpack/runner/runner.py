@@ -77,9 +77,18 @@ class Runner(object):
     def current_lr(self):
         return [group['lr'] for group in self.optimizer.param_groups]
 
-    def register_hook(self, hook):
-        assert isinstance(hook, Hook)
-        self.hooks.append(hook)
+    def register_hook(self, hook, hook_type=None):
+        if hook_type is None:
+            assert isinstance(hook, Hook)
+            self.hooks.append(hook)
+        else:
+            if isinstance(hook, hook_type):
+                self.hooks.append(hook)
+            elif isinstance(hook, dict):
+                self.hooks.append(hook_type(**hook))
+            else:
+                raise TypeError('hook must be a {} object or a dict'.format(
+                    hook_type.__name__))
 
     def call_hook(self, fn_name):
         for hook in self.hooks:
@@ -204,7 +213,7 @@ class Runner(object):
         if checkpoint_config is None:
             checkpoint_config = {}
         self.register_lr_hooks(lr_config)
-        self.register_hook(OptimizerStepperHook(**grad_clip_config))
-        self.register_hook(CheckpointSaverHook(**checkpoint_config))
+        self.register_hook(grad_clip_config, OptimizerStepperHook)
+        self.register_hook(checkpoint_config, CheckpointSaverHook)
         if log_config is not None:
             self.register_logger_hooks(log_config)
