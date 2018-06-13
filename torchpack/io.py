@@ -46,7 +46,7 @@ def load_state_dict(module, state_dict, strict=False, logger=None):
 def load_checkpoint(model, filename, strict=False, logger=None):
     # load checkpoint from modelzoo or file or url
     if filename.startswith('modelzoo://'):
-        model_name = pretrained.lstrip('modelzoo://')
+        model_name = filename.lstrip('modelzoo://')
         checkpoint = model_zoo.load_url(model_urls[model_name])
     elif filename.startswith(('http://', 'https://')):
         checkpoint = model_zoo.load_url(filename)
@@ -55,7 +55,7 @@ def load_checkpoint(model, filename, strict=False, logger=None):
             raise IOError('{} is not a checkpoint file'.format(filename))
         checkpoint = torch.load(filename)
     # get state_dict from checkpoint
-    if isinstance(checkpoint, collections.OrderedDict):
+    if isinstance(checkpoint, OrderedDict):
         state_dict = checkpoint
     elif isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
         state_dict = checkpoint['state_dict']
