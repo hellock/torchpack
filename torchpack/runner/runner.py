@@ -94,9 +94,10 @@ class Runner(object):
         for hook in self.hooks:
             getattr(hook, fn_name)(self)
 
-    def load_checkpoint(self, filename, strict=False):
+    def load_checkpoint(self, filename, map_location='cpu', strict=False):
         self.logger.info('load checkpoint from %s', filename)
-        return load_checkpoint(self.model, filename, strict, self.logger)
+        return load_checkpoint(self.model, filename, map_location, strict,
+                               self.logger)
 
     def save_checkpoint(self, out_dir, filename_tmpl='epoch_{}.pth'):
         save_checkpoint(
@@ -136,7 +137,7 @@ class Runner(object):
         self.call_hook('after_val_epoch')
 
     def resume(self, checkpoint, resume_optimizer=True):
-        checkpoint = self.load_checkpoint(checkpoint)
+        checkpoint = self.load_checkpoint(checkpoint, map_location=None)
         self.epoch = checkpoint['epoch']
         self.num_iters = checkpoint['num_iters']
         if 'optimizer' in checkpoint and resume_optimizer:

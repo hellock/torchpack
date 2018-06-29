@@ -43,7 +43,11 @@ def load_state_dict(module, state_dict, strict=False, logger=None):
         print(msg)
 
 
-def load_checkpoint(model, filename, strict=False, logger=None):
+def load_checkpoint(model,
+                    filename,
+                    map_location=None,
+                    strict=False,
+                    logger=None):
     # load checkpoint from modelzoo or file or url
     if filename.startswith('modelzoo://'):
         model_name = filename.lstrip('modelzoo://')
@@ -53,7 +57,7 @@ def load_checkpoint(model, filename, strict=False, logger=None):
     else:
         if not os.path.isfile(filename):
             raise IOError('{} is not a checkpoint file'.format(filename))
-        checkpoint = torch.load(filename)
+        checkpoint = torch.load(filename, map_location=map_location)
     # get state_dict from checkpoint
     if isinstance(checkpoint, OrderedDict):
         state_dict = checkpoint
