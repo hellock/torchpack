@@ -30,7 +30,7 @@ class Config(object):
     def from_file(filename):
         if filename.endswith('.py'):
             sys.path.append(osp.dirname(filename))
-            module_name = osp.basename(filename).rstrip('.py')
+            module_name = osp.basename(filename)[:-3]
             cfg = import_module(module_name)
             config_dict = {
                 name: value

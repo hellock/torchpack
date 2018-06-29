@@ -50,7 +50,7 @@ def load_checkpoint(model,
                     logger=None):
     # load checkpoint from modelzoo or file or url
     if filename.startswith('modelzoo://'):
-        model_name = filename.lstrip('modelzoo://')
+        model_name = filename[11:]
         checkpoint = model_zoo.load_url(model_urls[model_name])
     elif filename.startswith(('http://', 'https://')):
         checkpoint = model_zoo.load_url(filename)
@@ -68,10 +68,7 @@ def load_checkpoint(model,
             'No state_dict found in checkpoint file {}'.format(filename))
     # strip prefix of state_dict
     if list(state_dict.keys())[0].startswith('module.'):
-        state_dict = {
-            k.lstrip('module.'): v
-            for k, v in checkpoint['state_dict'].items()
-        }
+        state_dict = {k[7:]: v for k, v in checkpoint['state_dict'].items()}
     # load state_dict
     if isinstance(model, torch.nn.DataParallel):
         load_state_dict(model.module, state_dict, strict, logger)
