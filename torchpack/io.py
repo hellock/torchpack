@@ -35,12 +35,13 @@ def load_state_dict(module, state_dict, strict=False, logger=None):
         err_msgs.append('missing keys in source state_dict: {}\n'.format(
             ', '.join(missing_keys)))
     msg = '\n'.join(err_msgs)
-    if strict:
-        raise RuntimeError(msg)
-    elif logger is not None:
-        logger.warn(msg)
-    else:
-        print(msg)
+    if msg:
+        if strict:
+            raise RuntimeError(msg)
+        elif logger is not None:
+            logger.warn(msg)
+        else:
+            print(msg)
 
 
 def load_checkpoint(model,
