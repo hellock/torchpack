@@ -136,8 +136,16 @@ class Runner(object):
             self.call_hook('after_val_iter')
         self.call_hook('after_val_epoch')
 
-    def resume(self, checkpoint, resume_optimizer=True):
-        checkpoint = self.load_checkpoint(checkpoint, map_location=None)
+    def resume(self, checkpoint, resume_optimizer=True,
+               map_location='default'):
+        if map_location == 'default':
+            device_id = torch.cuda.current_device()
+            checkpoint = self.load_checkpoint(
+                checkpoint,
+                map_location=lambda storage, loc: storage.cuda(device_id))
+        else:
+            checkpoint = self.load_checkpoint(
+                checkpoint, map_location=map_location)
         self.epoch = checkpoint['epoch']
         self.num_iters = checkpoint['num_iters']
         if 'optimizer' in checkpoint and resume_optimizer:
