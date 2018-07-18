@@ -91,6 +91,12 @@ class Config(object):
     def text(self):
         return self._text
 
+    def get(self, key, default=None):
+        if key in self:
+            return self.__getattr__(key)
+        else:
+            return default
+
     def keys(self):
         for key in self._config_dict:
             yield key

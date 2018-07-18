@@ -71,7 +71,10 @@ class Runner(object):
             filename = '{}_{}.log'.format(
                 time.strftime('%Y%m%d_%H%M%S', time.localtime()), self.rank)
             log_file = os.path.join(log_dir, filename)
-            logger.addHandler(logging.FileHandler(log_file, 'w'))
+            file_handler = logging.FileHandler(log_file, 'w')
+            file_handler.setFormatter(
+                logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+            logger.addHandler(file_handler)
         return logger
 
     def current_lr(self):
