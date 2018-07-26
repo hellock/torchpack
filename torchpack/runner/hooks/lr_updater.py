@@ -13,7 +13,7 @@ class LrUpdaterHook(Hook):
                  **kwargs):
         # validate the "warm_up" argument
         if warm_up is not None:
-            if warm_up not in ['constant', 'linear']:
+            if warm_up not in ['constant', 'linear', 'exp']:
                 raise ValueError(
                     '"{}" is not a supported type for warming up, valid types'
                     ' are "constant" and "linear"'.format(warm_up))
@@ -47,6 +47,9 @@ class LrUpdaterHook(Hook):
         elif self.warm_up == 'linear':
             k = (1 - cur_iters / self.warm_up_iters) * (1 - self.warm_up_ratio)
             warmup_lr = [_lr * (1 - k) for _lr in self.regular_lr]
+        elif self.warm_up == 'exp':
+            k = self.warm_up_ratio**(1 - cur_iters / self.warm_up_iters)
+            warmup_lr = [_lr * k for _lr in self.regular_lr]
         return warmup_lr
 
     def before_run(self, runner):
