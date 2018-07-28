@@ -7,7 +7,8 @@ from torch.nn.parallel import DataParallel, DistributedDataParallel
 
 from torchpack.io import load_checkpoint, save_checkpoint
 from torchpack.runner.hooks import (Hook, LrUpdaterHook, CheckpointSaverHook,
-                                    MeterHook, OptimizerStepperHook)
+                                    TimerHook, OptimizerStepperHook)
+from torchpack.runner.log_buffer import LogBuffer
 from torchpack.runner.utils import get_dist_info, get_host_info
 
 
@@ -42,6 +43,7 @@ class Runner(object):
         else:
             self._model_name = self.model.__class__.__name__
 
+        self.log_buffer = LogBuffer()
         self.hooks = []
         self.max_epoch = 0
         self.max_iter = 0
@@ -80,18 +82,28 @@ class Runner(object):
     def current_lr(self):
         return [group['lr'] for group in self.optimizer.param_groups]
 
-    def register_hook(self, hook, hook_type=None):
+    def register_hook(self, hook, hook_type=None, priority=50):
+        assert isinstance(priority, int) and priority >= 0 and priority <= 100
         if hook_type is None:
             assert isinstance(hook, Hook)
-            self.hooks.append(hook)
         else:
-            if isinstance(hook, hook_type):
-                self.hooks.append(hook)
-            elif isinstance(hook, dict):
-                self.hooks.append(hook_type(**hook))
-            else:
+            if isinstance(hook, dict):
+                hook = hook_type(**hook)
+            elif not isinstance(hook, hook_type):
                 raise TypeError('hook must be a {} object or a dict'.format(
                     hook_type.__name__))
+        if hasattr(hook, 'priority'):
+            raise ValueError('"priority" is a reserved attribute for hooks')
+        hook.priority = priority
+        # insert the hook to a sorted list
+        inserted = False
+        for i in range(len(self.hooks) - 1, -1, -1):
+            if priority >= self.hooks[i].priority:
+                self.hooks.insert(i + 1, hook)
+                inserted = True
+                break
+        if not inserted:
+            self.hooks.insert(0, hook)
 
     def call_hook(self, fn_name):
         for hook in self.hooks:
@@ -119,8 +131,14 @@ class Runner(object):
         for i, data_batch in enumerate(data_loader):
             self.num_epoch_iters = i
             self.call_hook('before_train_iter')
-            self.outputs = self.batch_processor(
+            outputs = self.batch_processor(
                 self.model, data_batch, train_mode=True, **kwargs)
+            if not isinstance(outputs, dict):
+                raise TypeError('batch_processor() must return a dict')
+            if 'log_vars' in outputs:
+                self.log_buffer.update(outputs['log_vars'],
+                                       outputs['num_samples'])
+            self.outputs = outputs
             self.call_hook('after_train_iter')
             self.num_iters += 1
         self.call_hook('after_train_epoch')
@@ -134,8 +152,14 @@ class Runner(object):
         for i, data_batch in enumerate(data_loader):
             self.num_epoch_iters = i
             self.call_hook('before_val_iter')
-            self.outputs = self.batch_processor(
+            outputs = self.batch_processor(
                 self.model, data_batch, train_mode=False, **kwargs)
+            if not isinstance(outputs, dict):
+                raise TypeError('batch_processor() must return a dict')
+            if 'log_vars' in outputs:
+                self.log_buffer.update(outputs['log_vars'],
+                                       outputs['num_samples'])
+            self.outputs = outputs
             self.call_hook('after_val_iter')
         self.call_hook('after_val_epoch')
 
@@ -195,7 +219,7 @@ class Runner(object):
                             ' or dict, not {}'.format(type(lr_config)))
 
     def register_logger_hooks(self, log_config):
-        self.register_hook(MeterHook())
+        self.register_hook(TimerHook())
         log_interval = log_config['interval']
         from . import hooks
         for logger_name, args in log_config['hooks']:
@@ -208,11 +232,9 @@ class Runner(object):
                     'logger name must be a string of hook type, not {}'.format(
                         logger_name))
             kwargs = args.copy()
-            kwargs['reset_meter'] = False
             if 'interval' not in kwargs:
                 kwargs['interval'] = log_interval
-            self.register_hook(logger_cls(**kwargs))
-        self.hooks[-1].reset_meter = True
+            self.register_hook(logger_cls(**kwargs), priority=60)
 
     def register_default_hooks(self,
                                lr_config,

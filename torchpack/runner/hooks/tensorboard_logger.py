@@ -25,11 +25,11 @@ class TensorboardLoggerHook(LoggerHook):
 
     @master_only
     def log(self, runner):
-        if runner.rank != 0:
-            return
-        for var in runner.outputs['log_vars']:
+        for var in runner.log_buffer.output:
+            if var in ['time', 'data_time']:
+                continue
             tag = '{}/{}'.format(var, runner.mode)
-            self.writer.add_scalar(tag, runner.meter.avg[var],
+            self.writer.add_scalar(tag, runner.log_buffer.output[var],
                                    runner.num_iters)
 
     @master_only

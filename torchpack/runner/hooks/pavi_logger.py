@@ -142,8 +142,7 @@ class PaviLoggerHook(LoggerHook):
 
     @master_only
     def log(self, runner):
-        log_outs = {
-            var: runner.meter.avg[var]
-            for var in runner.outputs['log_vars']
-        }
+        log_outs = runner.log_buffer.output.copy()
+        log_outs.pop('time', None)
+        log_outs.pop('data_time', None)
         self.pavi_logger.log(runner.mode, runner.num_iters, log_outs)

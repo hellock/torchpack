@@ -2,6 +2,7 @@ import os
 from collections import OrderedDict
 
 import torch
+from torch.nn.parallel import DataParallel, DistributedDataParallel
 from torch.utils import model_zoo
 from torchvision.models.resnet import model_urls
 
@@ -71,7 +72,7 @@ def load_checkpoint(model,
     if list(state_dict.keys())[0].startswith('module.'):
         state_dict = {k[7:]: v for k, v in checkpoint['state_dict'].items()}
     # load state_dict
-    if isinstance(model, torch.nn.DataParallel):
+    if isinstance(model, (DataParallel, DistributedDataParallel)):
         load_state_dict(model.module, state_dict, strict, logger)
     else:
         load_state_dict(model, state_dict, strict, logger)
@@ -100,7 +101,7 @@ def save_checkpoint(model,
                     is_best=False):
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
-    if isinstance(model, torch.nn.DataParallel):
+    if isinstance(model, (DataParallel, DistributedDataParallel)):
         model = model.module
     filename = os.path.join(out_dir, filename_tmpl.format(epoch))
     checkpoint = {
