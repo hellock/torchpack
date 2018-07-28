@@ -191,11 +191,18 @@ class Runner(object):
         while self.epoch < max_epoch:
             for i, flow in enumerate(workflow):
                 mode, epochs = flow
-                if not hasattr(self, mode):
-                    raise ValueError(
-                        'runner has no method named "{}" to run an epoch'.
-                        format(mode))
-                epoch_runner = getattr(self, mode)
+                if isinstance(mode, str):
+                    if not hasattr(self, mode):
+                        raise ValueError(
+                            'runner has no method named "{}" to run an epoch'.
+                            format(mode))
+                    epoch_runner = getattr(self, mode)
+                elif callable(mode):
+                    epoch_runner = mode
+                else:
+                    raise TypeError('mode in workflow must be a str or '
+                                    'callable function, not {}'.format(
+                                        type(mode)))
                 for _ in range(epochs):
                     if mode == 'train' and self.epoch >= max_epoch:
                         return
