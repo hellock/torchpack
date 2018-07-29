@@ -32,8 +32,8 @@ class LogBuffer(object):
         """Average latest n values or all values"""
         assert n >= 0
         for key in self.val_history:
-            value = np.array(self.val_history[key][-n:])
-            n = np.array(self.n_history[key][-n:])
-            avg = np.sum(value * n) / np.sum(n)
+            values = np.array(self.val_history[key][-n:])
+            nums = np.array(self.n_history[key][-n:])
+            avg = np.sum(values * nums) / np.sum(nums)
             self.output[key] = avg
         self.ready = True
