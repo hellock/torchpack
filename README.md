@@ -1,4 +1,4 @@
-# torchpack
+# torchpack (Deprecated! Please use [mmcv](https://github.com/open-mmlab/mmcv) instead.)
 
 [![PyPI Version](https://img.shields.io/pypi/v/torchpack.svg)](https://pypi.python.org/pypi/torchpack)
 
